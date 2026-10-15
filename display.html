@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Layar Papan Skor — PapanScore</title>
+  <meta name="description" content="Layar papan skor digital. Tampilkan di laptop atau proyektor, kendalikan dari HP.">
+  <meta name="theme-color" content="#0E1116">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="page-display">
+  <a class="skip-link" href="#board">Langsung ke papan skor</a>
+
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="PapanScore, kembali ke beranda">
+      <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="6" width="28" height="20" rx="4" fill="currentColor" opacity=".18"/><rect x="2" y="6" width="28" height="20" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 9v14" stroke="currentColor" stroke-width="2" stroke-dasharray="2 2.5"/><text x="9" y="20.5" font-size="9" font-weight="800" text-anchor="middle" fill="currentColor" font-family="sans-serif">3</text><text x="23" y="20.5" font-size="9" font-weight="800" text-anchor="middle" fill="currentColor" font-family="sans-serif">1</text></svg>
+      <span>PapanScore</span>
+    </a>
+    <div class="topbar__actions">
+      <p class="status" id="net-status" data-tone="warn" role="status">
+        <span class="status__dot" aria-hidden="true"></span>
+        <span id="net-status-text">Menyiapkan koneksi…</span>
+      </p>
+      <button class="btn btn--accent" type="button" id="pair-open">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+        <span class="btn__label">Hubungkan HP</span>
+      </button>
+      <button class="btn btn--ghost" type="button" id="fullscreen-toggle" aria-pressed="false" aria-label="Layar penuh">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <span class="btn__label">Layar penuh</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="board" id="board" tabindex="-1">
+    <h1 class="board__title" id="board-title" hidden></h1>
+
+    <section class="team" data-team="0" aria-label="TIM A: 0 poin" aria-live="polite">
+      <h2 class="team__name" data-name>TIM A</h2>
+      <p class="team__score" data-score>0</p>
+    </section>
+
+    <section class="center" aria-label="Waktu dan set">
+      <div class="timer" id="timer-card" data-state="paused">
+        <p class="timer__label">Waktu</p>
+        <p class="timer__value" id="timer-value">30:00</p>
+        <p class="timer__state" id="timer-state">Siap</p>
+      </div>
+      <div class="sets">
+        <div class="sets__item">
+          <p class="sets__name"><span class="sets__dot" aria-hidden="true"></span><span data-set-name>TIM A</span></p>
+          <p class="sets__label">Set</p>
+          <p class="sets__value" data-set>0</p>
+        </div>
+        <div class="sets__item">
+          <p class="sets__name"><span class="sets__dot" aria-hidden="true"></span><span data-set-name>TIM B</span></p>
+          <p class="sets__label">Set</p>
+          <p class="sets__value" data-set>0</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="team" data-team="1" aria-label="TIM B: 0 poin" aria-live="polite">
+      <h2 class="team__name" data-name>TIM B</h2>
+      <p class="team__score" data-score>0</p>
+    </section>
+  </main>
+
+  <noscript>
+    <p class="noscript">Papan skor membutuhkan JavaScript untuk menerima skor dari HP. Aktifkan JavaScript lalu muat ulang halaman.</p>
+  </noscript>
+
+  <dialog class="dialog pair" id="pair-dialog" aria-labelledby="pair-title">
+    <form method="dialog" class="dialog__close-form">
+      <button class="icon-btn" type="submit" aria-label="Tutup">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </form>
+    <h2 class="dialog__title" id="pair-title">Hubungkan HP sebagai remote</h2>
+    <div class="pair__grid">
+      <div class="pair__qr" id="pair-qr"></div>
+      <div class="pair__info">
+        <ol class="steps">
+          <li>Pindai QR ini dengan kamera HP, <strong>atau</strong> buka <a id="pair-link" href="control.html">control.html</a>.</li>
+          <li>Jika diminta, masukkan kode layar:</li>
+        </ol>
+        <p class="pair__code" id="pair-code" aria-label="Kode layar">———</p>
+        <p class="pair__net"><span class="status__dot" aria-hidden="true"></span> <span id="pair-net">Menyiapkan koneksi…</span></p>
+        <div class="pair__actions">
+          <button class="btn btn--ghost" type="button" id="pair-copy">Salin tautan</button>
+          <a class="btn btn--ghost" id="pair-local" href="control.html" target="_blank" rel="noopener">Buka kontrol di tab baru</a>
+        </div>
+        <p class="hint" id="pair-copy-msg" role="status"></p>
+        <p class="hint">Kode ini khusus untuk layar ini dan tidak ada akun. Siapa pun yang punya kode bisa mengubah skor — bagikan seperlunya.</p>
+        <details class="shortcuts">
+          <summary>Pintasan keyboard di laptop</summary>
+          <dl>
+            <dt><kbd>Q</kbd> / <kbd>A</kbd></dt><dd>Tim kiri +1 / −1</dd>
+            <dt><kbd>P</kbd> / <kbd>L</kbd></dt><dd>Tim kanan +1 / −1</dd>
+            <dt><kbd>Spasi</kbd></dt><dd>Mulai / jeda waktu</dd>
+            <dt><kbd>U</kbd></dt><dd>Batalkan aksi terakhir</dd>
+            <dt><kbd>F</kbd></dt><dd>Layar penuh</dd>
+            <dt><kbd>K</kbd></dt><dd>Buka jendela ini</dd>
+          </dl>
+        </details>
+        <button class="link-btn" type="button" id="pair-new-code">Buat kode baru (putuskan semua HP)</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="sr-only" id="live-region" aria-live="assertive"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous" defer></script>
+  <script src="assets/js/core.js" defer></script>
+  <script src="assets/js/display.js" defer></script>
+</body>
+</html>

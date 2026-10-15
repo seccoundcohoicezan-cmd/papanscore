@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kontrol Papan Skor — PapanScore</title>
+  <meta name="description" content="Remote papan skor di HP: tap untuk menambah poin, atur waktu, nama dan warna tim.">
+  <meta name="theme-color" content="#0E1116">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="page-control">
+  <a class="skip-link" href="#main">Langsung ke kontrol</a>
+
+  <header class="topbar topbar--control">
+    <a class="brand" href="./" aria-label="PapanScore, kembali ke beranda">
+      <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="6" width="28" height="20" rx="4" fill="currentColor" opacity=".18"/><rect x="2" y="6" width="28" height="20" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 9v14" stroke="currentColor" stroke-width="2" stroke-dasharray="2 2.5"/></svg>
+      <span>Kontrol</span>
+    </a>
+    <div class="topbar__actions">
+      <p class="status" id="net-status" data-tone="idle" role="status">
+        <span class="status__dot" aria-hidden="true"></span>
+        <span id="net-status-text">Belum terhubung</span>
+      </p>
+      <button class="btn btn--ghost btn--sm" type="button" id="change-screen" hidden>Ganti layar</button>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <!-- Langkah 1: pasangkan dengan layar -->
+    <section class="pairform" id="view-pair" aria-labelledby="pair-heading">
+      <h1 id="pair-heading">Hubungkan ke layar</h1>
+      <p class="lead">Buka <strong>Layar</strong> di laptop, lalu pindai QR-nya dengan kamera HP. Atau ketik kode 6 huruf yang tampil di layar.</p>
+      <form class="card form" id="pair-form" novalidate>
+        <label class="field__label" for="code-input">Kode layar</label>
+        <input class="field__input field__input--code" id="code-input" name="code" type="text" inputmode="text"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="7"
+               placeholder="ABC-234" aria-describedby="code-help code-error" required>
+        <p class="field__help" id="code-help">Huruf dan angka, tanpa O, I, L, 0, atau 1.</p>
+        <p class="field__error" id="code-error" role="alert"></p>
+        <button class="btn btn--accent btn--block btn--lg" type="submit">Hubungkan</button>
+        <button class="btn btn--ghost btn--block" type="button" id="reuse-code" hidden></button>
+      </form>
+      <noscript><p class="noscript">Kontrol membutuhkan JavaScript. Aktifkan JavaScript lalu muat ulang halaman.</p></noscript>
+    </section>
+
+    <!-- Langkah 2: remote -->
+    <section class="remote" id="view-remote" hidden aria-labelledby="remote-heading">
+      <h1 class="sr-only" id="remote-heading">Remote papan skor</h1>
+      <p class="banner" id="banner" role="status" hidden></p>
+
+      <div class="remote__teams">
+        <article class="rteam" data-team="0">
+          <header class="rteam__head">
+            <h2 class="rteam__name" data-name>TIM A</h2>
+            <p class="rteam__score" data-score aria-live="polite">0</p>
+          </header>
+          <button class="rteam__plus" type="button" data-cmd="score" data-team="0" data-delta="1">
+            <span aria-hidden="true">+1</span><span class="sr-only" data-label>Tambah 1 poin TIM A</span>
+          </button>
+          <div class="rteam__row">
+            <button class="btn btn--soft rteam__minus" type="button" data-cmd="score" data-team="0" data-delta="-1">
+              <span aria-hidden="true">−1</span><span class="sr-only" data-label>Kurangi 1 poin TIM A</span>
+            </button>
+            <div class="stepper" role="group" aria-label="Set TIM A" data-set-group>
+              <span class="stepper__label">Set</span>
+              <button class="stepper__btn" type="button" data-cmd="sets" data-team="0" data-delta="-1" aria-label="Kurangi set">−</button>
+              <output class="stepper__value" data-sets>0</output>
+              <button class="stepper__btn" type="button" data-cmd="sets" data-team="0" data-delta="1" aria-label="Tambah set">+</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="rteam" data-team="1">
+          <header class="rteam__head">
+            <h2 class="rteam__name" data-name>TIM B</h2>
+            <p class="rteam__score" data-score aria-live="polite">0</p>
+          </header>
+          <button class="rteam__plus" type="button" data-cmd="score" data-team="1" data-delta="1">
+            <span aria-hidden="true">+1</span><span class="sr-only" data-label>Tambah 1 poin TIM B</span>
+          </button>
+          <div class="rteam__row">
+            <button class="btn btn--soft rteam__minus" type="button" data-cmd="score" data-team="1" data-delta="-1">
+              <span aria-hidden="true">−1</span><span class="sr-only" data-label>Kurangi 1 poin TIM B</span>
+            </button>
+            <div class="stepper" role="group" aria-label="Set TIM B" data-set-group>
+              <span class="stepper__label">Set</span>
+              <button class="stepper__btn" type="button" data-cmd="sets" data-team="1" data-delta="-1" aria-label="Kurangi set">−</button>
+              <output class="stepper__value" data-sets>0</output>
+              <button class="stepper__btn" type="button" data-cmd="sets" data-team="1" data-delta="1" aria-label="Tambah set">+</button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="card rtimer" id="timer-card" data-state="paused">
+        <div>
+          <p class="rtimer__label">Waktu <span id="timer-state">Siap</span></p>
+          <p class="rtimer__value" id="timer-value">30:00</p>
+        </div>
+        <div class="rtimer__actions">
+          <button class="btn btn--accent btn--lg" type="button" data-cmd="timer-toggle" id="timer-toggle">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-icon-play><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-icon-pause hidden><path d="M8 5v14M16 5v14"/></svg>
+            <span>Mulai</span>
+          </button>
+          <button class="btn btn--soft btn--lg" type="button" data-cmd="timer-reset">Reset waktu</button>
+        </div>
+      </div>
+
+      <nav class="toolbar" aria-label="Aksi pertandingan">
+        <button class="tool" type="button" data-cmd="undo" id="undo-btn">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>
+          <span>Batalkan</span>
+        </button>
+        <button class="tool" type="button" data-cmd="swap">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>
+          <span>Tukar sisi</span>
+        </button>
+        <button class="tool" type="button" id="open-settings">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+          <span>Atur</span>
+        </button>
+        <button class="tool tool--danger" type="button" id="open-reset">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg>
+          <span>Reset</span>
+        </button>
+      </nav>
+    </section>
+  </main>
+
+  <dialog class="dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <form class="form" id="settings-form" method="dialog" novalidate>
+      <h2 class="dialog__title" id="settings-title">Pengaturan papan skor</h2>
+      <div class="field">
+        <label class="field__label" for="s-title">Judul pertandingan <span class="field__opt">(opsional)</span></label>
+        <input class="field__input" id="s-title" name="title" type="text" maxlength="60" placeholder="Final Futsal Antar Kelas">
+      </div>
+      <div class="form__grid">
+        <div class="field">
+          <label class="field__label" for="s-name-0">Nama tim kiri</label>
+          <input class="field__input" id="s-name-0" name="name0" type="text" maxlength="24" required>
+        </div>
+        <div class="field">
+          <label class="field__label" for="s-color-0">Warna tim kiri</label>
+          <input class="field__color" id="s-color-0" name="color0" type="color">
+        </div>
+        <div class="field">
+          <label class="field__label" for="s-name-1">Nama tim kanan</label>
+          <input class="field__input" id="s-name-1" name="name1" type="text" maxlength="24" required>
+        </div>
+        <div class="field">
+          <label class="field__label" for="s-color-1">Warna tim kanan</label>
+          <input class="field__color" id="s-color-1" name="color1" type="color">
+        </div>
+        <div class="field">
+          <label class="field__label" for="s-min">Durasi (menit)</label>
+          <input class="field__input" id="s-min" name="min" type="number" inputmode="numeric" min="0" max="99" step="1" required>
+        </div>
+        <div class="field">
+          <label class="field__label" for="s-sec">Durasi (detik)</label>
+          <input class="field__input" id="s-sec" name="sec" type="number" inputmode="numeric" min="0" max="59" step="1" required>
+        </div>
+      </div>
+      <label class="check">
+        <input type="checkbox" name="sound" id="s-sound">
+        <span>Bunyikan tanda di laptop saat waktu habis</span>
+      </label>
+      <p class="field__error" id="settings-error" role="alert"></p>
+      <p class="hint">Mengubah durasi akan mereset waktu. Data hanya tersimpan di browser laptop yang menjadi layar.</p>
+      <div class="dialog__actions">
+        <button class="btn btn--soft" type="button" data-close>Batal</button>
+        <button class="btn btn--accent" type="submit" value="save">Simpan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog dialog--sm" id="reset-dialog" aria-labelledby="reset-title">
+    <form method="dialog">
+      <h2 class="dialog__title" id="reset-title">Reset pertandingan?</h2>
+      <p>Skor, set, dan waktu kembali ke awal. Nama dan warna tim tetap. Anda masih bisa memakai <strong>Batalkan</strong> untuk mengembalikan skor.</p>
+      <div class="dialog__actions">
+        <button class="btn btn--soft" type="submit" value="cancel">Batal</button>
+        <button class="btn btn--danger" type="submit" value="reset">Ya, reset</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous" defer></script>
+  <script src="assets/js/core.js" defer></script>
+  <script src="assets/js/control.js" defer></script>
+</body>
+</html>
