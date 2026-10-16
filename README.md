@@ -19,7 +19,8 @@ papanscore/
     ├── favicon.svg
     ├── css/app.css      # semua gaya, token warna di :root
     └── js/
-        ├── config.js    # opsional: server TURN sendiri
+        ├── config.js    # opsional: server TURN sendiri, daftar broker relai
+        ├── relay.js     # relai cadangan MQTT-over-WSS terenkripsi (tanpa dependensi)
         ├── core.js      # utilitas bersama (kode, state default, penyimpanan, ICE)
         ├── display.js   # Layar: sumber data, simpan ke localStorage, siarkan ke HP
         └── control.js   # Kontrol: kirim perintah, tampilkan state dari Layar
@@ -39,18 +40,15 @@ Pintasan keyboard di Layar: `Q`/`A` untuk tim kiri +1/−1, `P`/`L` untuk tim ka
 
 - **Data lokal.** Skor, nama, warna, dan durasi disimpan di `localStorage` browser laptop (Layar). Data tetap ada setelah refresh, dan waktu yang sedang berjalan tetap dihitung.
 - **HP ↔ laptop langsung.** Koneksi memakai WebRTC lewat [PeerJS](https://peerjs.com) 1.5.4 (CDN jsDelivr, versi dikunci + SRI). Server publik PeerJS hanya dipakai untuk mempertemukan kedua perangkat. Skor dikirim langsung antar-perangkat (STUN Google + Cloudflare untuk menembus NAT).
+- **Relai cadangan otomatis.** Bersamaan dengan WebRTC, HP dan laptop juga masuk ke "ruang" di broker MQTT publik lewat WSS (EMQX, HiveMQ, Mosquitto sekaligus). Jika jaringan memblokir koneksi langsung, perintah dan skor lewat relai ini (status HP: *Terhubung · relai*). Topik memakai hash kode, isi pesan dienkripsi AES-GCM dengan kunci dari kode, jadi broker tidak bisa membaca atau memalsukan pesan. Selama jalur langsung tersambung, relai tidak dipakai mengirim data.
 - **Satu browser.** Tab Kontrol dan tab Layar di browser yang sama juga tersambung lewat `BroadcastChannel`. Cara ini tetap jalan walau internet putus.
 - **Keamanan.** Siapa pun yang tahu kodenya bisa mengubah skor. Pakai **Buat kode baru** di jendela "Hubungkan HP" untuk memutus semua HP.
 
 ## Kalau HP lama sekali "Menghubungkan…"
 
-HP sekarang mencoba ulang otomatis tiap beberapa detik dan biasanya tersambung dalam ±1 detik setelah Layar siap. Kalau muncul pesan *"HP belum bisa tersambung langsung ke laptop karena jaringannya"*, berarti jaringan memblokir koneksi langsung, misalnya HP memakai data seluler sedangkan laptop memakai Wi-Fi, atau Wi-Fi kampus/kantor memisahkan perangkat. Solusinya:
+HP mencoba dua jalur sekaligus: **langsung** (WebRTC, ±1 dtk) dan **relai** (±2 dtk). Jalur mana pun yang lebih dulu tersambung langsung dipakai, jadi data seluler vs Wi-Fi atau Wi-Fi kampus yang memisahkan perangkat tetap bisa tersambung. Kalau keduanya gagal, biasanya internet salah satu perangkat mati atau jaringannya memblokir WebSocket. Coba Wi-Fi yang sama atau hotspot HP. Opsi lanjutan di `assets/js/config.js`: server TURN sendiri dan daftar broker relai.
 
-1. Sambungkan HP dan laptop ke **Wi-Fi yang sama**, atau
-2. Nyalakan **hotspot HP** lalu sambungkan laptop ke hotspot itu (paling andal), atau
-3. Pasang server **TURN** sendiri di `assets/js/config.js` (misalnya akun gratis Metered atau coturn). TURN bawaan PeerJS sudah tidak aktif.
-
-Uji koneksi otomatis: `python tests/e2e_connect.py http://localhost:8000` (butuh Playwright + Chromium). Skenarionya: pairing normal, HP dibuka sebelum Layar, Layar di-reload, dan jalur langsung diblokir.
+Uji koneksi otomatis: `python tests/e2e_connect.py http://localhost:8000` (butuh Playwright + Chromium). Skenarionya: pairing normal, HP dibuka sebelum Layar, Layar di-reload, WebRTC diblokir (harus lewat relai), dan relai diblokir (harus lewat WebRTC).
 
 ## Menjalankan & hosting
 

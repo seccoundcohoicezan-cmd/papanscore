@@ -8,6 +8,8 @@
   const stateKey = (c) => `ps.state.${c}`;
   const HEARTBEAT_MS = 4000;
   const HISTORY_MAX = 50;
+  const RELAY_IDLE_MS = 20000; // berhenti mengirim detak ke relai bila tak ada HP di sana
+  const RELAY_CLIENT_MS = 12000;
 
   let code = PS.store.get(CODE_KEY);
   if (!PS.isValidCode(code || '')) {
@@ -21,6 +23,9 @@
   const conns = new Set();
   let peer = null;
   let bc = null;
+  let relay = null;
+  let relayActiveAt = 0;
+  const relayClients = new Map();
   let peerRetry = 0;
   let idRetry = 0;
   let netStatus = 'connecting';
@@ -217,6 +222,7 @@
     }
     conns.forEach((c) => { if (c.open) c.send(packet); });
     if (bc) bc.postMessage(packet);
+    if (relay && Date.now() - relayActiveAt < RELAY_IDLE_MS) relay.send(packet);
   }
 
   const broadcast = () => sendState(null);
@@ -228,6 +234,31 @@
     bc.onmessage = (e) => handleMessage(e.data, null);
   }
 
+  // HP yang terhubung lewat relai mengirim 'hello' (minta state) atau 'ping' (masih ada).
+  function onRelay(msg) {
+    if (!msg || typeof msg !== 'object' || msg.t === 'state') return; // pesan kita sendiri
+    relayActiveAt = Date.now();
+    if (typeof msg.from === 'string') {
+      const isNew = !relayClients.has(msg.from);
+      relayClients.set(msg.from, relayActiveAt);
+      if (isNew) setNet(netStatus);
+    }
+    if (msg.t === 'hello') relay.send(statePacket());
+    else if (msg.t === 'cmd') handleMessage(msg, null);
+  }
+
+  function relayCount() {
+    const now = Date.now();
+    relayClients.forEach((at, id) => { if (now - at > RELAY_CLIENT_MS) relayClients.delete(id); });
+    return relayClients.size;
+  }
+
+  function startRelay() {
+    relay?.leave();
+    relayClients.clear();
+    relay = window.PSRelay ? PSRelay.join(code, onRelay, () => setNet(netStatus)) : null;
+  }
+
   function setNet(status) {
     netStatus = status;
     const labels = {
@@ -237,16 +268,19 @@
       offline: 'Offline — hanya tab di laptop ini',
       reconnecting: 'Menyambung ulang…',
     };
-    let text = labels[status] || '';
-    let tone = status === 'ready' ? 'idle' : 'warn';
-    if (status === 'ready' && conns.size > 0) {
-      text = `${conns.size} HP terhubung`;
+    // Server PeerJS bermasalah tapi relai jalan: HP tetap bisa tersambung.
+    const usable = status === 'ready' || (status !== 'duplicate' && relay?.connected);
+    const phones = conns.size + relayCount();
+    let text = usable ? labels.ready : labels[status] || '';
+    let tone = usable ? 'idle' : 'warn';
+    if (usable && phones > 0) {
+      text = `${phones} HP terhubung`;
       tone = 'ok';
     }
     el.status.dataset.tone = tone;
     el.statusText.textContent = text;
     el.pairNet.textContent = text;
-    el.body.classList.toggle('has-remote', conns.size > 0);
+    el.body.classList.toggle('has-remote', phones > 0);
   }
 
   function startPeer() {
@@ -324,6 +358,7 @@
     conns.clear();
     renderPairing();
     startChannel();
+    startRelay();
     startPeer();
   }
 
@@ -498,11 +533,15 @@
   render();
   renderPairing();
   startChannel();
+  startRelay();
   startPeer();
   PS.keepAwake();
   setInterval(tick, 200);
-  setInterval(broadcast, HEARTBEAT_MS);
-  window.addEventListener('online', () => { if (netStatus !== 'ready') startPeer(); });
+  setInterval(() => { broadcast(); if (relayClients.size) setNet(netStatus); }, HEARTBEAT_MS);
+  window.addEventListener('online', () => {
+    relay?.retryNow();
+    if (netStatus !== 'ready') startPeer();
+  });
   // Lepas ID di server saat halaman ditutup/di-reload, supaya saat dibuka lagi ID langsung
   // bisa dipakai (tanpa ini server menahannya beberapa detik dan HP harus menunggu).
   window.addEventListener('pagehide', () => { peer?.destroy(); });

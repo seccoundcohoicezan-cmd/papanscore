@@ -36,6 +36,9 @@
   let remainingAt = { ms: 0, at: 0 };
   let lastMsgAt = 0;
   let lastBcAt = 0;
+  let lastRelayAt = 0;
+  let relay = null;
+  const clientId = PS.uid();
   let connOpenedAt = 0;
   let peer = null;
   let conn = null;
@@ -50,18 +53,22 @@
   const CONNECT_TIMEOUT_MS = 7000; // batas jalur WebRTC (ICE) setelah layar menjawab
   const MSG_MISSING = 'Layar dengan kode ini belum siap. Pastikan halaman Layar terbuka di laptop — HP akan tersambung otomatis.';
   const MSG_SERVER = 'Gagal menghubungi server pemasangan. Mencoba lagi…';
-  const MSG_BLOCKED = 'HP belum bisa tersambung langsung ke laptop karena jaringannya. Sambungkan HP ke Wi-Fi yang sama dengan laptop, atau nyalakan hotspot HP lalu sambungkan laptop ke hotspot itu. Tetap mencoba…';
+  const MSG_BLOCKED = 'HP belum bisa tersambung ke laptop. Pastikan internet HP dan laptop aktif. Kalau tetap gagal, sambungkan keduanya ke Wi-Fi yang sama atau hotspot HP. Tetap mencoba…';
+  const RELAY_RETRY_MS = 15000; // sudah lewat relai: coba jalur langsung sesekali saja
 
   /* ---------- Koneksi ---------- */
 
   const peerConnected = () => Boolean(conn && conn.open);
   const bcConnected = () => Date.now() - lastBcAt < STALE_MS;
-  const isConnected = () => (peerConnected() || bcConnected()) && state != null;
+  const relayConnected = () => Date.now() - lastRelayAt < STALE_MS;
+  const isConnected = () => (peerConnected() || bcConnected() || relayConnected()) && state != null;
 
   function send(msg) {
     let sent = false;
     if (peerConnected()) { conn.send(msg); sent = true; }
     if (bc) { bc.postMessage(msg); sent = sent || bcConnected(); }
+    // Relai hanya dipakai saat jalur langsung belum/tidak ada, supaya hemat kuota & cepat.
+    if (relay && !peerConnected()) { relay.send({ ...msg, from: clientId }); sent = sent || relayConnected(); }
     return sent;
   }
 
@@ -76,9 +83,10 @@
 
   function onMessage(msg, via) {
     if (!msg || msg.t !== 'state' || !msg.state) return;
-    if (state && msg.state.rev < state.rev && via === 'bc') return;
+    if (state && msg.state.rev < state.rev && via !== 'peer') return;
     lastMsgAt = Date.now();
     if (via === 'bc') lastBcAt = lastMsgAt;
+    if (via === 'relay') lastRelayAt = lastMsgAt;
     state = msg.state;
     remainingAt = { ms: msg.remaining, at: performance.now() };
     el.undo.disabled = !msg.canUndo;
@@ -100,6 +108,11 @@
       bc.onmessage = (e) => onMessage(e.data, 'bc');
       bc.postMessage({ t: 'hello' });
     }
+    // Jalur cadangan dibuka bersamaan, jadi tidak ada waktu yang terbuang bila WebRTC gagal.
+    if (window.PSRelay) {
+      relay = PSRelay.join(code, (msg) => onMessage(msg, 'relay'), updateStatus);
+      relay?.send({ t: 'hello', from: clientId });
+    }
     // Peer sudah disiapkan sejak halaman dibuka, jadi biasanya langsung bisa memanggil Layar.
     if (!peer || peer.destroyed || peerSawMissing) startPeer();
     else if (peer.open) openConn();
@@ -112,8 +125,11 @@
     dropConn();
     bc?.close();
     bc = null;
+    relay?.leave();
+    relay = null;
     state = null;
     lastBcAt = 0;
+    lastRelayAt = 0;
     lastMsgAt = 0;
     retryCount = 0;
     lastError = '';
@@ -202,7 +218,7 @@
   function scheduleRetry({ immediate = false, fresh = false } = {}) {
     clearTimeout(retryTimer);
     retryCount += 1;
-    const delay = immediate ? 0 : Math.min(3000, 500 * retryCount);
+    const delay = relayConnected() ? RELAY_RETRY_MS : immediate ? 0 : Math.min(3000, 500 * retryCount);
     retryTimer = setTimeout(() => {
       if (!code || peerConnected()) return;
       if (fresh || !peer || peer.destroyed) startPeer();
@@ -215,6 +231,8 @@
   // Data channel bisa "terbuka" padahal mati (HP tidur). Detak hilang = sambung ulang.
   function watchdog() {
     if (!code) return;
+    // Tanda masih ada untuk Layar; minta state penuh bila relai sedang sepi.
+    if (relay && !peerConnected()) relay.send({ t: relayConnected() ? 'ping' : 'hello', from: clientId });
     if (peerConnected() && Date.now() - Math.max(lastMsgAt, connOpenedAt) > STALE_MS) {
       dropConn();
       scheduleRetry({ immediate: true });
@@ -251,7 +269,7 @@
     let tone = 'idle';
     if (code) {
       if (connected) {
-        text = `Terhubung · ${PS.formatCode(code)}`;
+        text = `Terhubung · ${PS.formatCode(code)}${!peerConnected() && !bcConnected() ? ' · relai' : ''}`;
         tone = 'ok';
       } else {
         text = lastMsgAt ? 'Menyambung ulang…' : 'Menghubungkan…';
@@ -424,7 +442,10 @@
       watchdog();
     }
   });
-  window.addEventListener('online', () => { if (code && !isConnected()) scheduleRetry(); });
+  window.addEventListener('online', () => {
+    relay?.retryNow();
+    if (code && !isConnected()) scheduleRetry();
+  });
   window.addEventListener('hashchange', () => {
     const fromHash = PS.normalizeCode(location.hash.slice(1));
     if (PS.isValidCode(fromHash) && fromHash !== code) connect(fromHash);
