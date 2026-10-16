@@ -41,8 +41,16 @@
   let conn = null;
   let bc = null;
   let retryTimer = 0;
+  let connTimer = 0;
   let retryCount = 0;
+  let peerSawMissing = false;
   let lastError = '';
+
+  const ANSWER_TIMEOUT_MS = 2500; // layar yang terbuka menjawab tawaran dalam < 1 dtk
+  const CONNECT_TIMEOUT_MS = 7000; // batas jalur WebRTC (ICE) setelah layar menjawab
+  const MSG_MISSING = 'Layar dengan kode ini belum siap. Pastikan halaman Layar terbuka di laptop — HP akan tersambung otomatis.';
+  const MSG_SERVER = 'Gagal menghubungi server pemasangan. Mencoba lagi…';
+  const MSG_BLOCKED = 'HP belum bisa tersambung langsung ke laptop karena jaringannya. Sambungkan HP ke Wi-Fi yang sama dengan laptop, atau nyalakan hotspot HP lalu sambungkan laptop ke hotspot itu. Tetap mencoba…';
 
   /* ---------- Koneksi ---------- */
 
@@ -92,21 +100,23 @@
       bc.onmessage = (e) => onMessage(e.data, 'bc');
       bc.postMessage({ t: 'hello' });
     }
-    startPeer();
+    // Peer sudah disiapkan sejak halaman dibuka, jadi biasanya langsung bisa memanggil Layar.
+    if (!peer || peer.destroyed || peerSawMissing) startPeer();
+    else if (peer.open) openConn();
     updateStatus();
   }
 
+  // Hanya memutus sambungan ke layar; peer (pendaftaran ke server) tetap hidup agar cepat dipakai lagi.
   function disconnect() {
     clearTimeout(retryTimer);
-    conn?.close();
-    peer?.destroy();
+    dropConn();
     bc?.close();
-    conn = null;
-    peer = null;
     bc = null;
     state = null;
     lastBcAt = 0;
     lastMsgAt = 0;
+    retryCount = 0;
+    lastError = '';
   }
 
   function startPeer() {
@@ -115,29 +125,64 @@
       updateStatus();
       return;
     }
-    const p = new Peer({ debug: 0 });
+    dropConn();
+    peer?.destroy();
+    const p = new Peer(PS.peerOptions());
     peer = p;
-    p.on('open', () => { if (p === peer) openConn(); });
+    peerSawMissing = false;
+    p.on('open', () => { if (p === peer && code) openConn(); });
     p.on('disconnected', () => {
       // Server pemasangan putus; data channel yang sudah terbuka tetap dipakai.
-      if (p === peer && !p.destroyed) setTimeout(() => { if (p === peer && p.disconnected && !p.destroyed) p.reconnect(); }, 2000);
+      if (p === peer && !p.destroyed) setTimeout(() => { if (p === peer && p.disconnected && !p.destroyed) p.reconnect(); }, 500);
     });
     p.on('error', (err) => {
-      if (p !== peer) return;
-      lastError = err.type === 'peer-unavailable'
-        ? 'Layar dengan kode ini tidak ditemukan. Pastikan halaman Layar terbuka di laptop.'
-        : 'Gagal menghubungi server pemasangan. Mencoba lagi…';
+      if (p !== peer || !code) return;
+      if (err.type === 'peer-unavailable') {
+        peerSawMissing = true;
+        dropConn();
+        lastError = MSG_MISSING;
+      } else {
+        lastError = MSG_SERVER;
+      }
       updateStatus();
-      scheduleRetry();
+      // Server PeerJS tidak lagi menjawab tawaran ulang dari peer yang sama ke kode yang
+      // pernah "tidak ditemukan", jadi percobaan berikutnya memakai peer baru.
+      scheduleRetry({ fresh: peerSawMissing });
     });
   }
 
+  // Lepas sambungan aktif tanpa memicu handler 'close'-nya (handler mengecek c === conn).
+  function dropConn() {
+    clearTimeout(connTimer);
+    const c = conn;
+    conn = null;
+    c?.close();
+  }
+
   function openConn() {
-    conn?.close();
+    dropConn();
     const c = peer.connect(PS.peerId(code), { serialization: 'json', reliable: true });
     conn = c;
+    let opened = false;
+    // PeerJS tidak memberi kabar bila tawaran tak dijawab (layar belum/baru dibuka) atau jalur
+    // jaringan buntu (ICE). Tanpa batas waktu ini HP bisa tertahan "Menghubungkan…" selamanya.
+    const giveUp = (answered) => {
+      if (c !== conn || opened) return;
+      dropConn();
+      if (answered) lastError = MSG_BLOCKED;
+      else if (!lastError) lastError = MSG_MISSING;
+      updateStatus();
+      scheduleRetry({ immediate: true, fresh: true });
+    };
+    connTimer = setTimeout(() => {
+      if (!c.peerConnection?.remoteDescription) { giveUp(false); return; }
+      // Layar sudah menjawab: tinggal menunggu jalur WebRTC terbentuk.
+      connTimer = setTimeout(() => giveUp(true), CONNECT_TIMEOUT_MS - ANSWER_TIMEOUT_MS);
+    }, ANSWER_TIMEOUT_MS);
     c.on('open', () => {
       if (c !== conn) return;
+      opened = true;
+      clearTimeout(connTimer);
       connOpenedAt = Date.now();
       c.send({ t: 'hello' });
       updateStatus();
@@ -145,6 +190,7 @@
     c.on('data', (msg) => { if (c === conn) onMessage(msg, 'peer'); });
     const lost = () => {
       if (c !== conn) return;
+      dropConn();
       updateStatus();
       scheduleRetry();
     };
@@ -152,14 +198,17 @@
     c.on('error', lost);
   }
 
-  function scheduleRetry() {
+  // Jeda pendek (0,5–3 dtk): HP yang menunggu layar dibuka/di-reload tersambung hampir seketika.
+  function scheduleRetry({ immediate = false, fresh = false } = {}) {
     clearTimeout(retryTimer);
     retryCount += 1;
-    const delay = Math.min(15000, 1000 * 2 ** Math.min(retryCount, 4));
+    const delay = immediate ? 0 : Math.min(3000, 500 * retryCount);
     retryTimer = setTimeout(() => {
-      if (!code) return;
-      if (peer && !peer.destroyed && peer.open) openConn();
-      else { peer?.destroy(); startPeer(); }
+      if (!code || peerConnected()) return;
+      if (fresh || !peer || peer.destroyed) startPeer();
+      else if (peer.open) openConn();
+      else if (peer.disconnected) peer.reconnect();
+      // selain itu peer masih mendaftar; event 'open' akan memanggil openConn()
     }, delay);
   }
 
@@ -167,9 +216,8 @@
   function watchdog() {
     if (!code) return;
     if (peerConnected() && Date.now() - Math.max(lastMsgAt, connOpenedAt) > STALE_MS) {
-      conn.close();
-      conn = null;
-      scheduleRetry();
+      dropConn();
+      scheduleRetry({ immediate: true });
     }
     updateStatus();
   }
@@ -386,6 +434,7 @@
 
   document.body.classList.add('js');
   const fromHash = PS.normalizeCode(location.hash.slice(1));
+  startPeer();
   if (PS.isValidCode(fromHash)) connect(fromHash);
   else showPair();
   PS.keepAwake();

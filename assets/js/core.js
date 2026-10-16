@@ -105,9 +105,23 @@ window.PS = (() => {
 
   const peerAvailable = () => typeof window.Peer === 'function';
 
+  // TURN bawaan PeerJS 1.5.4 (*.turn.peerjs.com) sudah tidak ada di DNS, jadi daftar ICE
+  // ditulis sendiri. TURN milik sendiri bisa ditambahkan lewat assets/js/config.js.
+  const STUN_SERVERS = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ];
+  const peerOptions = () => {
+    const turn = (window.PAPANSCORE_CONFIG || {}).turnServers;
+    return {
+      debug: 0,
+      config: { iceServers: [...STUN_SERVERS, ...(Array.isArray(turn) ? turn : [])] },
+    };
+  };
+
   return {
     CODE_LEN, MAX_DURATION_MS,
     defaultState, randomCode, normalizeCode, isValidCode, formatCode, peerId, channelName,
-    uid, clamp, toInt, formatTime, inkFor, isHexColor, store, keepAwake, peerAvailable,
+    uid, clamp, toInt, formatTime, inkFor, isHexColor, store, keepAwake, peerAvailable, peerOptions,
   };
 })();

@@ -256,7 +256,7 @@
     }
     peer?.destroy();
     setNet('connecting');
-    const p = new Peer(PS.peerId(code), { debug: 0 });
+    const p = new Peer(PS.peerId(code), PS.peerOptions());
     peer = p;
 
     p.on('open', () => {
@@ -287,17 +287,17 @@
       if (p !== peer || p.destroyed) return;
       // Koneksi HP yang sudah ada tetap jalan; ini hanya sinyal ke server pemasangan.
       setNet('reconnecting');
-      setTimeout(() => { if (p === peer && !p.destroyed && p.disconnected) p.reconnect(); }, 2000);
+      setTimeout(() => { if (p === peer && !p.destroyed && p.disconnected) p.reconnect(); }, 500);
     });
 
     p.on('error', (err) => {
       if (p !== peer) return;
       if (err.type === 'unavailable-id') {
-        // Setelah reload, server kadang masih memegang ID lama beberapa detik.
-        if (idRetry < 4) {
+        // Setelah reload/tab ditutup paksa, server masih memegang ID lama sampai soketnya habis.
+        if (idRetry < 15) {
           idRetry += 1;
           setNet('reconnecting');
-          setTimeout(() => { if (p === peer) startPeer(); }, 2500);
+          setTimeout(() => { if (p === peer) startPeer(); }, 1500);
         } else {
           setNet('duplicate');
         }
@@ -306,7 +306,7 @@
       if (['network', 'server-error', 'socket-error', 'socket-closed', 'browser-incompatible'].includes(err.type)) {
         setNet(navigator.onLine ? 'reconnecting' : 'offline');
         peerRetry += 1;
-        const delay = Math.min(30000, 2000 * peerRetry);
+        const delay = Math.min(10000, 1000 * peerRetry);
         setTimeout(() => { if (p === peer) startPeer(); }, delay);
       }
     });
@@ -503,6 +503,10 @@
   setInterval(tick, 200);
   setInterval(broadcast, HEARTBEAT_MS);
   window.addEventListener('online', () => { if (netStatus !== 'ready') startPeer(); });
+  // Lepas ID di server saat halaman ditutup/di-reload, supaya saat dibuka lagi ID langsung
+  // bisa dipakai (tanpa ini server menahannya beberapa detik dan HP harus menunggu).
+  window.addEventListener('pagehide', () => { peer?.destroy(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) startPeer(); });
   if (!PS.store.get('ps.display.paired')) {
     el.dialog.showModal();
     PS.store.set('ps.display.paired', true);

@@ -19,7 +19,8 @@ papanscore/
     ├── favicon.svg
     ├── css/app.css      # semua gaya, token warna di :root
     └── js/
-        ├── core.js      # utilitas bersama (kode, state default, penyimpanan)
+        ├── config.js    # opsional: server TURN sendiri
+        ├── core.js      # utilitas bersama (kode, state default, penyimpanan, ICE)
         ├── display.js   # Layar: sumber data, simpan ke localStorage, siarkan ke HP
         └── control.js   # Kontrol: kirim perintah, tampilkan state dari Layar
 ```
@@ -37,9 +38,19 @@ Pintasan keyboard di Layar: `Q`/`A` untuk tim kiri +1/−1, `P`/`L` untuk tim ka
 ## Cara kerja
 
 - **Data lokal.** Skor, nama, warna, dan durasi disimpan di `localStorage` browser laptop (Layar). Data tetap ada setelah refresh, dan waktu yang sedang berjalan tetap dihitung.
-- **HP ↔ laptop langsung.** Koneksi memakai WebRTC lewat [PeerJS](https://peerjs.com) 1.5.4 (CDN jsDelivr, versi dikunci + SRI). Server publik PeerJS hanya dipakai untuk mempertemukan kedua perangkat. Skor dikirim langsung antar-perangkat. Kalau kedua perangkat berada di jaringan berbeda (misalnya HP memakai data seluler), PeerJS memakai TURN publiknya sebagai relai.
+- **HP ↔ laptop langsung.** Koneksi memakai WebRTC lewat [PeerJS](https://peerjs.com) 1.5.4 (CDN jsDelivr, versi dikunci + SRI). Server publik PeerJS hanya dipakai untuk mempertemukan kedua perangkat. Skor dikirim langsung antar-perangkat (STUN Google + Cloudflare untuk menembus NAT).
 - **Satu browser.** Tab Kontrol dan tab Layar di browser yang sama juga tersambung lewat `BroadcastChannel`. Cara ini tetap jalan walau internet putus.
 - **Keamanan.** Siapa pun yang tahu kodenya bisa mengubah skor. Pakai **Buat kode baru** di jendela "Hubungkan HP" untuk memutus semua HP.
+
+## Kalau HP lama sekali "Menghubungkan…"
+
+HP sekarang mencoba ulang otomatis tiap beberapa detik dan biasanya tersambung dalam ±1 detik setelah Layar siap. Kalau muncul pesan *"HP belum bisa tersambung langsung ke laptop karena jaringannya"*, berarti jaringan memblokir koneksi langsung, misalnya HP memakai data seluler sedangkan laptop memakai Wi-Fi, atau Wi-Fi kampus/kantor memisahkan perangkat. Solusinya:
+
+1. Sambungkan HP dan laptop ke **Wi-Fi yang sama**, atau
+2. Nyalakan **hotspot HP** lalu sambungkan laptop ke hotspot itu (paling andal), atau
+3. Pasang server **TURN** sendiri di `assets/js/config.js` (misalnya akun gratis Metered atau coturn). TURN bawaan PeerJS sudah tidak aktif.
+
+Uji koneksi otomatis: `python tests/e2e_connect.py http://localhost:8000` (butuh Playwright + Chromium). Skenarionya: pairing normal, HP dibuka sebelum Layar, Layar di-reload, dan jalur langsung diblokir.
 
 ## Menjalankan & hosting
 
