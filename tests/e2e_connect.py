@@ -53,6 +53,8 @@ with sync_playwright() as pw:
         t = time.time(); c.click('[data-cmd="score"][data-team="1"][data-delta="1"]')
         wait(d, "document.querySelectorAll('[data-team] [data-score]')[1].textContent === '1'", 15)
         res['D   tap +1 di HP -> skor di laptop (relai)'] = time.time() - t
+        wait(c, "document.querySelectorAll('.rteam [data-score]')[1].textContent === '1'", 15)
+        res['D   skor balik ke HP (relai)'] = time.time() - t
         wait(d, f"{STATUS}.includes('1 HP terhubung')", 15)
         print('   D status HP:', c.text_content('#net-status-text'), '| Layar:', d.text_content('#net-status-text'))
     except Exception:
